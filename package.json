@@ -1,0 +1,11 @@
+{
+  "name": "argmin",
+  "version": "0.1.0",
+  "description": "Tooling for splat compression (used by the argmin pipeline)",
+  "license": "MIT",
+  "type": "commonjs",
+  "dependencies": {
+    "@playcanvas/splat-transform": "^3.11.2"
+  },
+  "private": true
+}

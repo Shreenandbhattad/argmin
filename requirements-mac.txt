@@ -1,0 +1,3 @@
+# Local run on Apple Silicon: core + the Metal Gaussian-splat trainer
+-r requirements.txt
+msplat[cli]>=1.1

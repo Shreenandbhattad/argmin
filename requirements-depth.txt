@@ -1,0 +1,23 @@
+# Optional depth prior (da3_init.py). Also needs Depth Anything 3 itself:
+#   git clone https://github.com/ByteDance-Seed/Depth-Anything-3 third_party/da3
+#   pip install --no-deps -e third_party/da3
+-r requirements.txt
+torch>=2.2
+torchvision
+einops
+huggingface_hub
+numpy<2
+opencv-python
+omegaconf
+safetensors
+plyfile
+trimesh
+imageio
+imageio-ffmpeg
+moviepy==1.0.3
+pillow_heif
+e3nn
+addict
+evo
+open3d
+pycolmap

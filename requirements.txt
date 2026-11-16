@@ -1,0 +1,3 @@
+# Core pipeline (frame selection, pose bookkeeping, view export)
+numpy>=1.26
+pillow>=10
