@@ -1,0 +1,150 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+<title>Room Viewer</title>
+<link rel="icon" href="data:,">
+<style>
+  :root { --glass:rgba(40,40,44,.55); --hair:rgba(255,255,255,.14); }
+  html, body { margin:0; height:100%; background:#000; overflow:hidden; touch-action:none; font:15px -apple-system,BlinkMacSystemFont,"SF Pro Text",system-ui,sans-serif; color:#fff; -webkit-user-select:none; user-select:none; }
+  canvas { display:block; }
+  .glass { background:var(--glass); backdrop-filter:blur(24px) saturate(180%); -webkit-backdrop-filter:blur(24px) saturate(180%); border:.5px solid var(--hair); }
+  #back { position:fixed; top:max(12px,env(safe-area-inset-top)); left:12px; width:44px; height:44px; border-radius:50%; display:grid; place-items:center; color:#fff; text-decoration:none; }
+  #dock { position:fixed; left:50%; transform:translateX(-50%); bottom:max(18px,env(safe-area-inset-bottom)); display:flex; gap:2px; padding:6px; border-radius:30px; }
+  #dock button { width:52px; height:48px; border:0; background:none; color:#fff; border-radius:24px; display:grid; place-items:center; cursor:pointer; transition:background .15s; }
+  #dock button:active { background:rgba(255,255,255,.18); }
+  #dock button.on { background:#fff; color:#000; }
+  svg { width:22px; height:22px; fill:none; stroke:currentColor; stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round; }
+  #msg { position:fixed; top:50%; left:0; right:0; text-align:center; transform:translateY(-50%); color:rgba(235,235,245,.6); }
+  #hint { position:fixed; top:max(22px,env(safe-area-inset-top)); left:64px; right:64px; text-align:center; font-size:13px; color:rgba(235,235,245,.7); text-shadow:0 1px 4px rgba(0,0,0,.6); transition:opacity .5s; }
+</style>
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.185.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.185.0/examples/jsm/",
+  "@sparkjsdev/spark": "https://cdn.jsdelivr.net/npm/@sparkjsdev/spark@2.4.0/dist/spark.module.js"
+} }
+</script>
+</head>
+<body>
+<div id="msg">Loading scene…</div>
+<div id="hint">Drag to look around. Pinch to zoom.</div>
+<a id="back" class="glass" href="/" aria-label="Back"><svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg></a>
+<div id="dock" class="glass">
+  <button id="tour" aria-label="Tour"><svg viewBox="0 0 24 24"><path d="M8 5.5v13l11-6.5z" fill="currentColor"/></svg></button>
+  <button id="reset" aria-label="Recenter"><svg viewBox="0 0 24 24"><path d="M4 9V6a2 2 0 012-2h3M15 4h3a2 2 0 012 2v3M20 15v3a2 2 0 01-2 2h-3M9 20H6a2 2 0 01-2-2v-3"/><circle cx="12" cy="12" r="2.5"/></svg></button>
+  <button id="flip" aria-label="Flip upside down"><svg viewBox="0 0 24 24"><path d="M7 4v16M7 20l-3-3M7 20l3-3M17 20V4M17 4l-3 3M17 4l3 3"/></svg></button>
+  <button id="rot" aria-label="Rotate"><svg viewBox="0 0 24 24"><path d="M20 12a8 8 0 11-2.6-5.9M20 4v4h-4"/></svg></button>
+</div>
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { SparkRenderer, SplatMesh } from '@sparkjsdev/spark';
+
+const scanName = new URLSearchParams(location.search).get('scan');
+const base = `/scans/${encodeURIComponent(scanName)}/`;
+const $ = (id) => document.getElementById(id);
+const PLAY = $('tour').innerHTML;
+const STOP = '<svg viewBox="0 0 24 24"><rect x="6.5" y="6.5" width="11" height="11" rx="2" fill="currentColor"/></svg>';
+
+const renderer = new THREE.WebGLRenderer({ antialias: false });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.setSize(innerWidth, innerHeight);
+document.body.prepend(renderer.domElement);
+
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(65, innerWidth / innerHeight, 0.01, 1000);
+scene.add(new SparkRenderer({ renderer }));
+
+// fix = auto "up" from the capture cameras; user = manual flip/rotate on top
+const user = new THREE.Group(); scene.add(user);
+const fix = new THREE.Group(); user.add(fix);
+const splat = new SplatMesh({ url: base + (new URLSearchParams(location.search).get('file') || 'scene.spz') });
+fix.add(splat);
+
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true; controls.screenSpacePanning = true; controls.rotateSpeed = 0.6;
+
+let view = null;
+try { const r = await fetch(base + 'view.json'); if (r.ok) view = await r.json(); } catch {}
+
+const key = 'orient:' + scanName;
+let orient = { flip: !view, rot: 0 };   // old scans without view.json are usually upside down
+try { orient = JSON.parse(localStorage.getItem(key)) || orient; } catch {}
+function applyOrient() {
+  user.rotation.set(orient.flip ? Math.PI : 0, orient.rot * Math.PI / 2, 0);
+  user.updateMatrixWorld(true);
+  try { localStorage.setItem(key, JSON.stringify(orient)); } catch {}
+}
+if (view) fix.quaternion.setFromUnitVectors(new THREE.Vector3(...view.up), new THREE.Vector3(0, 1, 0));
+applyOrient();
+
+const toWorld = (a) => new THREE.Vector3(...a).applyMatrix4(fix.matrixWorld);
+const dirWorld = (a) => new THREE.Vector3(...a).transformDirection(fix.matrixWorld);
+
+function resetView() {
+  stopTour();
+  if (view) {
+    const c0 = view.cams[0];
+    const p = toWorld(c0.p), target = toWorld(view.center);
+    camera.position.copy(p); controls.target.copy(target);
+  } else {
+    const box = splat.getBoundingBox(true).applyMatrix4(splat.matrixWorld);
+    const c = box.getCenter(new THREE.Vector3());
+    const r = Math.min(box.getSize(new THREE.Vector3()).length() * 0.25, 4);
+    camera.position.copy(c).add(new THREE.Vector3(0, r * 0.4, r)); controls.target.copy(c);
+  }
+  camera.up.set(0, 1, 0); controls.update();
+}
+
+// Tour: fly smoothly along the path you filmed
+let tour = null;
+function startTour() {
+  if (!view || view.cams.length < 2) return;
+  const pts = view.cams.map(c => toWorld(c.p));
+  const look = view.cams.map(c => toWorld(c.p).add(dirWorld(c.f)));
+  tour = { pos: new THREE.CatmullRomCurve3(pts), look: new THREE.CatmullRomCurve3(look), t: 0,
+           dur: Math.max(12, view.cams.length * 0.35) };
+  controls.enabled = false; $('tour').classList.add('on'); $('tour').innerHTML = STOP;
+}
+function stopTour() {
+  if (!tour) return;
+  tour = null; controls.enabled = true;
+  const fwd = new THREE.Vector3(); camera.getWorldDirection(fwd);
+  controls.target.copy(camera.position).addScaledVector(fwd, 1.0); controls.update();
+  $('tour').classList.remove('on'); $('tour').innerHTML = PLAY;
+}
+$('tour').onclick = () => tour ? stopTour() : startTour();
+$('reset').onclick = resetView;
+$('flip').onclick = () => { orient.flip = !orient.flip; applyOrient(); resetView(); };
+$('rot').onclick = () => { orient.rot = (orient.rot + 1) % 4; applyOrient(); resetView(); };
+if (!view) $('tour').hidden = true;
+renderer.domElement.addEventListener('pointerdown', () => { $('hint').style.opacity = 0; }, { once: true });
+setTimeout(() => { $('hint').style.opacity = 0; }, 6000);
+
+splat.initialized.then(() => { $('msg').remove(); resetView(); })
+  .catch(e => { $('msg').textContent = 'Could not load scene: ' + e; });
+
+addEventListener('resize', () => {
+  camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth, innerHeight);
+});
+const clock = new THREE.Clock();
+renderer.setAnimationLoop(() => {
+  const dt = clock.getDelta();
+  if (tour) {
+    tour.t += dt / tour.dur;
+    if (tour.t >= 1) stopTour();
+    else {
+      const u = tour.t;
+      camera.position.copy(tour.pos.getPointAt(u));
+      camera.up.set(0, 1, 0);
+      camera.lookAt(tour.look.getPointAt(u));
+    }
+  } else controls.update();
+  renderer.render(scene, camera);
+});
+</script>
+</body>
+</html>
