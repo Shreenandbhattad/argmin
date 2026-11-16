@@ -21,7 +21,8 @@ def worker():
     while True:
         video, opts = jobs.get()
         cmd = [sys.executable, str(ROOT / "pipeline.py"), str(video),
-               "--frames", str(opts.get("frames", 180)), "--iters", str(opts.get("iters", 7000))]
+               "--frames", str(opts.get("frames", 200)), "--iters", str(opts.get("iters", 15000)),
+               "--downscales", str(opts.get("ds", 0))]
         if shutil.which("caffeinate"):      # macOS: keep the Mac awake while processing
             cmd = ["caffeinate", "-is"] + cmd
         with open(video.parent / "log.txt", "a") as f:
@@ -124,7 +125,8 @@ class H(SimpleHTTPRequestHandler):
                 f.write(chunk); remaining -= len(chunk)
         if part == parts - 1:
             (video.parent / "status.json").write_text(json.dumps({"stage": "queued", "msg": "Waiting in queue", "pct": 0}))
-            jobs.put((video, {"frames": int(q.get("frames", 180)), "iters": int(q.get("iters", 7000))}))
+            jobs.put((video, {"frames": min(400, int(q.get("frames", 200))), "iters": min(30000, int(q.get("iters", 15000))),
+                              "ds": min(3, int(q.get("ds", 0)))}))
             uploads.pop(uid, None)
         self.json({"ok": True, "name": video.parent.name, "done": part == parts - 1})
 

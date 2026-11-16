@@ -76,11 +76,11 @@
     <span id="pickt">Scan a Room</span>
   </button>
   <div class="seg" id="seg" role="group" aria-label="Quality">
-    <button data-v="120,4000" aria-pressed="false">Fast</button>
-    <button data-v="180,7000" aria-pressed="true">Balanced</button>
-    <button data-v="260,15000" aria-pressed="false">Best</button>
+    <button data-v="150,7000,2" aria-pressed="false">Fast</button>
+    <button data-v="200,15000,0" aria-pressed="true">Balanced</button>
+    <button data-v="260,30000,0" aria-pressed="false">Best</button>
   </div>
-  <p class="hint" id="hint">About 6 minutes to process</p>
+  <p class="hint" id="hint">Sharper, about 5 minutes</p>
 
   <h2>Scenes</h2>
   <div class="list" id="list"><div class="empty">No rooms yet</div></div>
@@ -88,18 +88,19 @@
   <details>
     <summary>How to film</summary>
     <ul>
-      <li>Record in 1080p for 1 to 2 minutes.</li>
-      <li>Walk slowly along the walls, facing inward. Then do a second pass facing the walls.</li>
-      <li>Keep the lights on and avoid mirrors and fast spins.</li>
-      <li>Always keep some edges or furniture in frame, not just a blank wall.</li>
-      <li>For full quality, save the video to the Files app first, then pick it from Files. Choosing it from Photos can shrink it to a tiny size.</li>
+      <li>Film for 1 to 2 minutes. A 15-second clip is not enough for a whole room.</li>
+      <li>Walk slowly along the walls facing inward, then make a second pass facing the walls.</li>
+      <li>Turn the lights on. Dim footage turns into blur.</li>
+      <li>Keep people out of the shot. Anything that moves leaves ghosts.</li>
+      <li>Keep edges or furniture in frame, not just a blank wall, the sky or water.</li>
+      <li>Save the video to the Files app and pick it from there. Picking from Photos can shrink it to 480p.</li>
     </ul>
   </details>
 </main>
 <script>
 const $ = (id) => document.getElementById(id);
-const times = { '120,4000': 'About 3 minutes to process', '180,7000': 'About 6 minutes to process', '260,15000': 'About 15 minutes to process' };
-let quality = '180,7000';
+const times = { '150,7000,2': 'Quick preview, about 2 minutes', '200,15000,0': 'Sharper, about 5 minutes', '260,30000,0': 'Sharpest, about 12 minutes' };
+let quality = '200,15000,0';
 $('seg').onclick = (e) => {
   const b = e.target.closest('button'); if (!b) return;
   quality = b.dataset.v;
@@ -109,7 +110,7 @@ $('seg').onclick = (e) => {
 $('pick').onclick = () => $('file').click();
 $('file').onchange = async () => {
   const f = $('file').files[0]; if (!f) return;
-  const [frames, iters] = quality.split(',');
+  const [frames, iters, ds] = quality.split(',');
   const ext = (f.name.split('.').pop() || 'mov').toLowerCase();
   const CH = 40 * 1024 * 1024, parts = Math.max(1, Math.ceil(f.size / CH));
   const id = Math.random().toString(36).slice(2) + Date.now().toString(36);
@@ -117,7 +118,7 @@ $('file').onchange = async () => {
   const done = (msg) => { $('pickt').textContent = 'Scan a Room'; $('pick').disabled = false; $('file').value = ''; if (msg) $('hint').textContent = msg; refresh(); };
   const send = (i) => new Promise((res, rej) => {
     const x = new XMLHttpRequest();
-    x.open('POST', `/upload?id=${id}&part=${i}&parts=${parts}&name=Room&ext=${ext}&frames=${frames}&iters=${iters}`);
+    x.open('POST', `/upload?id=${id}&part=${i}&parts=${parts}&name=Room&ext=${ext}&frames=${frames}&iters=${iters}&ds=${ds}`);
     x.upload.onprogress = (e) => { $('pickt').textContent = `Uploading ${Math.round((i * CH + e.loaded) / f.size * 100)}%`; };
     x.onload = () => x.status === 200 ? res() : rej(new Error('HTTP ' + x.status));
     x.onerror = () => rej(new Error('network'));

@@ -36,7 +36,7 @@ flowchart LR
 4. **Training.** A Gaussian splat is optimised on the GPU. Two backends are supported:
    [msplat](https://github.com/rayanht/msplat) on Apple Silicon and
    [gsplat](https://github.com/nerfstudio-project/gsplat) on NVIDIA GPUs.
-5. **Delivery.** The scene is compressed to roughly 5 MB and served to a phone-friendly viewer
+5. **Delivery.** The scene is compressed to 5 to 15 MB depending on quality and served to a phone-friendly viewer
    with orbit controls and a replay of the filmed camera path.
 
 ## Quick start
@@ -77,11 +77,12 @@ Output is written to `scans/demo/` (`scene.spz`, `splat.ply`, `view.json`).
 
 Capture quality matters more than any setting.
 
-- Record 1 to 2 minutes at 1080p or higher.
+- Record 1 to 2 minutes at 1080p or higher. Short clips leave most of the space unobserved.
 - Move slowly. Walk along the walls facing inward, then make a second pass facing the walls.
-- Keep the lights on, avoid mirrors and fast rotations, and keep edges or furniture in frame
-  rather than only a blank wall.
-- On iOS, pick the video from the Files app. Selecting it from Photos in Safari can downscale it.
+- Keep the lights on and keep people out of the shot; moving objects leave ghosts.
+- Avoid mirrors, fast rotations, and frames that contain only a blank wall, sky or water.
+- On iOS, pick the video from the Files app. Selecting it from Photos in Safari can downscale it
+  to 480p, which is the most common cause of blurry results.
 
 ## Project layout
 
@@ -101,6 +102,11 @@ Measured on an Apple M5 with 16 GB of memory.
 
 - A 50-frame sample scene runs end to end in about 2 minutes with the local backend.
 - Two phone videos (480x360) registered 342 of 348 frames and 180 of 180 frames respectively.
+- Training at full resolution for 15k iterations, instead of 7k iterations with a low-resolution
+  warm-up, raised held-out PSNR from 25.88 to 27.36 dB and SSIM from 0.865 to 0.890 on an indoor
+  phone capture (training time 28 s to 153 s). This is now the default.
+- A voxel-based floater filter removes stray Gaussians (about 4% on that capture) before
+  compression.
 - Depth prior A/B on the textured sample scene, same training budget, held-out views:
   PSNR 29.60 to 29.72 dB, SSIM 0.892 to 0.893. This is a single run on a textured scene.
   The intended benefit, better coverage on blank walls, has not been demonstrated yet.

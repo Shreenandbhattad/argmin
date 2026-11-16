@@ -230,7 +230,7 @@ def export_view(scan: Path, dataset: Path):
     (scan / "view.json").write_text(json.dumps(view))
 
 
-def process_video(video: Path, frames=180, width=1600, iters=7000, downscales=2, no_depth=False, trainer=None):
+def process_video(video: Path, frames=200, width=1600, iters=15000, downscales=0, no_depth=False, trainer=None):
     """The whole pipeline. `trainer(scan, dataset, iters, downscales) -> ply path` defaults to msplat (Mac)."""
     scan = video.parent
     t0 = time.time()
@@ -254,9 +254,18 @@ def process_video(video: Path, frames=180, width=1600, iters=7000, downscales=2,
         export_view(scan, dataset)
         extra = 0 if no_depth else add_depth_points(scan, dataset)
         ply = (trainer or train)(scan, dataset, iters, downscales)
-        log(scan, "compress", "Compressing for the phone", 96)
         st = Path(__file__).resolve().parent / "node_modules" / ".bin" / "splat-transform"
-        run([st if st.exists() else "splat-transform", "-w", ply, "--spz-version", "3", scan / "scene.spz"], scan)
+        st = st if st.exists() else "splat-transform"
+        log(scan, "cleanup", "Removing floating blobs", 95)
+        clean = scan / "splat_clean.ply"
+        try:
+            run([st, "-w", ply, "-F", clean], scan)
+            src = clean
+        except RuntimeError:
+            src = ply
+        log(scan, "compress", "Compressing for the phone", 98)
+        run([st, "-w", src, "--spz-version", "3", scan / "scene.spz"], scan)
+        clean.unlink(missing_ok=True)
         meta = {"frames": n, "registered": reg, "depth_points": extra, "seconds": round(time.time() - t0)}
         (scan / "meta.json").write_text(json.dumps(meta))
         log(scan, "done", f"Done in {meta['seconds']}s ({reg}/{n} frames used)", 100, done=True)
@@ -268,10 +277,11 @@ def process_video(video: Path, frames=180, width=1600, iters=7000, downscales=2,
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("video", type=Path)
-    ap.add_argument("--frames", type=int, default=180)
+    ap.add_argument("--frames", type=int, default=200)
     ap.add_argument("--width", type=int, default=1600)
-    ap.add_argument("--iters", type=int, default=7000)
-    ap.add_argument("--downscales", type=int, default=2)
+    ap.add_argument("--iters", type=int, default=15000)
+    ap.add_argument("--downscales", type=int, default=0,
+                    help="progressive low-res warm-up levels; 0 trains at full resolution (sharper, slower)")
     ap.add_argument("--no-depth", action="store_true", help="skip the Depth Anything 3 step")
     a = ap.parse_args()
     try:
